@@ -1,84 +1,76 @@
-﻿# Proyecto: Agente de pedidos para restaurante
+# Proyecto: Agente de pedidos para restaurante
 
-## Descripción
-MVP web mobile-first para consultar el menú diario de un restaurante, registrar pedidos y enviar una comanda PDF por correo. El proyecto usa React y Vite en el frontend, y Node.js con Express en el backend. Google Sheets almacena el menú, la configuración y los pedidos.
+## Estado actual
 
-## Árbol de carpetas
+MVP implementado para mostrar el menú, registrar pedidos en Google Sheets, generar una comanda PDF y enviarla por Gmail. El navegador muestra el menú del día, permite elegir cantidades y notas por plato, solicita datos de entrega y confirma el pedido.
+
+## Estructura
+
 ```text
-backend/
-  src/
-    config/
-    middleware/
-    routes/
-    services/
-    utils/
-    app.js
-  package.json
-frontend/
-  src/
-    components/
-    config/
-    hooks/
-    services/
-    styles/
-    App.jsx
-    main.jsx
-  index.html
-.env.example
-.gitignore
-README.md
-PROJECT.md
+agente-trippat/
+├── backend/
+│   ├── src/
+│   │   ├── services/
+│   │   │   ├── emailService.js
+│   │   │   ├── googleSheets.js
+│   │   │   ├── menuService.js
+│   │   │   ├── orderService.js
+│   │   │   └── pdfService.js
+│   │   ├── app.js
+│   │   └── config.js
+│   └── package.json
+├── credentials/
+│   └── google-service-account.json   # Credencial privada, ignorada por Git
+├── frontend/
+│   ├── src/
+│   │   ├── services/api.js
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── styles.css
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+├── .env                              # Valores locales, ignorados por Git
+├── .env.example                      # Plantilla sin secretos
+├── .gitignore
+├── package.json
+├── README.md
+└── PROJECT.md
 ```
 
-## Variables de entorno
-Se definirán en `.env`; las credenciales no se guardan en el código ni en Google Sheets. Variables iniciales previstas:
-- `PORT`: puerto del backend.
-- `FRONTEND_URL`: origen permitido para CORS.
-- `GOOGLE_SHEETS_SPREADSHEET_ID`: identificador del documento de Sheets.
-- `GOOGLE_SERVICE_ACCOUNT_EMAIL` y `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`: acceso de Service Account.
-- `RESTAURANT_EMAIL`: correo que recibe las comandas.
-- `GMAIL_USER` y `GMAIL_APP_PASSWORD`: cuenta y App Password para Nodemailer.
+## Configuración
 
-## Cómo correr el proyecto
-Instala las dependencias desde la raíz con `npm install`. Usa `npm run dev` para iniciar ambos proyectos o `npm run dev:backend` y `npm run dev:frontend` por separado. Consulta `README.md`. Los puntos de entrada se crearán en las siguientes etapas.
+Las variables requeridas están en `.env.example`; copia sus nombres a `.env` y completa los valores. No subas `.env` ni `credentials/` al repositorio.
 
-## Endpoints
-Pendiente de implementar:
-- `GET /api/menu`
-- `GET /api/config`
-- `POST /api/orders`
+- `GOOGLE_SHEET_MENU_ID`: documento cuyo primer tab contiene el menú.
+- `GOOGLE_SHEET_PEDIDOS_ID`: documento donde se registrarán pedidos en su primer tab.
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: ruta local al JSON de la cuenta de servicio.
+- `GMAIL_USER`, `GMAIL_APP_PASSWORD`: cuenta Gmail remitente y contraseña de aplicación.
+- `RESTAURANT_EMAIL`: destinatario de las comandas.
+- `RESTAURANT_NAME` y `WHATSAPP_NUMBER`: opcionales; personalizan nombre y enlace de WhatsApp.
 
-## Flujo del cliente
-1. Saludo y menú del día.
-2. Selección de platos y cantidades.
-3. Información del jugo del día.
-4. Comentarios opcionales por plato.
-5. Nombre, dirección y teléfono/WhatsApp.
-6. Resumen y confirmación del pedido.
-7. Confirmación final y acceso al WhatsApp del restaurante.
+Comparte ambos documentos de Sheets con el correo de la cuenta de servicio. La clave de Gmail debe ser una contraseña de aplicación nueva; no uses la contraseña normal de la cuenta.
 
-## Registro de teléfono
-El navegador no puede leer el número de teléfono del cliente por privacidad. El chat lo solicitará explícitamente. Se aceptarán números ecuatorianos `09XXXXXXXX` y `+5939XXXXXXXX`; se guardará el formato visible para la comanda y el normalizado para el enlace de WhatsApp.
+## Formato de Google Sheets
 
-## Configuración híbrida
-La configuración local en `frontend/src/config/restaurant.config.js` se mostrará primero. Luego se combinará con los valores válidos y no vacíos de `/api/config`, respaldado por la hoja `Config`. Si el backend no está disponible, se conservarán los valores locales.
+La primera fila de la primera pestaña del documento de menú debe tener encabezados. El código reconoce `Nombre` (o `Plato`, `Producto`, `Name`, `Item`) y `Precio` (o `Valor`, `Price`, `Costo`). Son opcionales `Descripción`, `Categoría` y `Disponible` (también `Activo`, `Available` o `Estado`). Si no existe la columna de disponibilidad, las filas válidas se consideran disponibles.
 
-Alternativas no implementadas:
-- **B — Solo archivo local:** sencilla y rápida, pero cada cambio requiere publicar una nueva versión.
-- **C — Solo hoja Config:** editable sin cambiar código, pero depende de internet y de la API.
-- **D — Variables `VITE_*`:** útiles para valores por ambiente, pero menos adecuadas para textos que el restaurante quiera editar.
+El primer tab del documento de pedidos recibe cada pedido. Si está vacío, la aplicación crea encabezados automáticamente; si ya tiene datos, la primera fila debe tener `ID`, `Fecha`, `Nombre`, `Dirección`, `Teléfono`, `Detalle`, `Total` y `Estado`, en ese orden. Si los encabezados no coinciden, el guardado se detiene para evitar escribir en columnas incorrectas.
 
-## Decisiones técnicas
-- Monorepo con carpetas independientes para backend y frontend.
-- React con estado ligero (`useReducer` o Context) y CSS moderno.
-- Google Sheets como almacenamiento del MVP.
-- PDF generado en el backend y enviado por Gmail.
+## API
 
-## Historial de cambios
-- 2026-11-08: creación de la estructura inicial, manifiestos de dependencias, configuración de entorno y documentación base.
+- `GET /api/health`: estado del backend, sin acceder a Google.
+- `GET /api/config`: nombre y WhatsApp públicos del restaurante.
+- `GET /api/menu`: lee el menú de Google Sheets.
+- `POST /api/orders`: valida el pedido, vuelve a consultar precios, lo registra, genera el PDF y envía el correo si Gmail está configurado.
 
-## Pendientes
-- Implementar los puntos de entrada y endpoints del backend.
-- Implementar el frontend y el flujo conversacional.
-- Conectar Google Sheets, PDF y envío de correo.
+El teléfono admite `09XXXXXXXX` o `+5939XXXXXXXX`. Si el pedido se guarda pero falla el correo, la respuesta confirma que quedó registrado e indica que la notificación está pendiente.
 
+## Ejecución local
+
+Desde la raíz, ejecuta `npm install` y luego `npm run dev`. El frontend estará en `http://localhost:5173` y el backend en `http://localhost:3001`. La carga inicial de la página consulta Google Sheets; confirmar un pedido escribe en la hoja y, con Gmail configurado, envía el PDF.
+
+## Historial
+
+- 2026-11-08: estructura inicial y configuración de entorno.
+- 2026-11-08: primera implementación del frontend, API, integración de Sheets, PDF y Gmail.

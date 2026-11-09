@@ -1,32 +1,29 @@
-﻿# Agente de pedidos para restaurante
+# Agente de pedidos para restaurante
 
-MVP web mobile-first para consultar el menú diario, registrar pedidos y enviar una comanda PDF por correo. El frontend usa React y Vite; el backend usa Node.js y Express, con Google Sheets para datos y Gmail para el envío.
+Aplicación web para consultar el menú del día, registrar pedidos, guardar comandas en Google Sheets y enviarlas como PDF por Gmail.
 
 ## Requisitos
 
-- Node.js 20 o superior
-- npm
-- Credenciales configuradas en `.env` (ver `.env.example`)
+- Node.js 20 o superior y npm.
+- `.env` configurado a partir de `.env.example`.
+- JSON de una cuenta de servicio de Google con acceso a los dos documentos.
+- Contraseña de aplicación Gmail y correo destinatario para enviar comandas.
 
-## Instalación y arranque
+## Preparar y ejecutar
 
-Desde la raíz del proyecto, instala las dependencias con `npm install`. Para arrancar frontend y backend juntos usa `npm run dev`. También puedes ejecutarlos por separado:
+Desde esta carpeta, instala las dependencias y arranca frontend y backend:
 
 ```bash
-cd backend
 npm install
 npm run dev
 ```
 
-En otra terminal:
+Abre `http://localhost:5173`. El backend usa `http://localhost:3001`; también puedes comprobarlo en `http://localhost:3001/api/health`.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+Al abrir la página se consulta el menú de Google Sheets. Para probar un pedido real, agrega platos, completa nombre, dirección y teléfono ecuatoriano (`09XXXXXXXX` o `+5939XXXXXXXX`) y confirma. El pedido se guarda en Sheets y se envía en PDF por correo si Gmail está configurado.
 
-Frontend: `http://localhost:5173`. Backend: `http://localhost:3001`.
+## Hoja del menú
 
-> Los comandos de arranque quedarán operativos al implementar los puntos de entrada de cada aplicación.
+La primera pestaña del documento indicado por `GOOGLE_SHEET_MENU_ID` debe tener encabezados en la primera fila. Se requieren `Nombre` y `Precio`. Son opcionales `Descripción`, `Categoría` y `Disponible`. La pestaña del documento `GOOGLE_SHEET_PEDIDOS_ID` recibe las comandas; si está vacía, se crean sus encabezados. Si ya tiene filas, la primera debe contener `ID`, `Fecha`, `Nombre`, `Dirección`, `Teléfono`, `Detalle`, `Total` y `Estado`, en ese orden.
 
+No publiques `.env` ni la carpeta `credentials/`.
