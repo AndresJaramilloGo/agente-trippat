@@ -8,29 +8,31 @@ export default function App() {
   const [menu, setMenu] = useState([]);
   const [cart, setCart] = useState({});
   const [customer, setCustomer] = useState({ name: '', address: '', phone: '' });
+  const [step, setStep] = useState('menu');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(null);
 
-  useEffect(() => {
-    Promise.all([getMenu(), getConfig()])
-      .then(([menuData, configData]) => {
-        setMenu(menuData.items || []);
-        setRestaurant(configData);
-      })
-      .catch((requestError) => setError(requestError.message))
-      .finally(() => setLoading(false));
-  }, []);
+  async function loadData() {
+    setLoading(true);
+    setError('');
+    try {
+      const [menuData, configData] = await Promise.all([getMenu(), getConfig()]);
+      setMenu(menuData.items || []);
+      setRestaurant(configData);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadData(); }, []);
 
   const selectedItems = useMemo(() => menu
     .filter((item) => cart[item.id]?.quantity > 0)
-    .map((item) => ({
-      ...item,
-      quantity: cart[item.id].quantity,
-      comment: cart[item.id].comment || '',
-    })), [menu, cart]);
-
+    .map((item) => ({ ...item, quantity: cart[item.id].quantity, comment: cart[item.id].comment || '' })), [menu, cart]);
   const total = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   function setQuantity(itemId, quantity) {
@@ -58,8 +60,8 @@ export default function App() {
         items: selectedItems.map(({ id, quantity, comment }) => ({ id, quantity, comment })),
       });
       setNotice(result);
+      setStep('done');
       setCart({});
-      setCustomer({ name: '', address: '', phone: '' });
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -82,114 +84,116 @@ export default function App() {
         <span className="open-badge"><span /> Pedidos del día</span>
       </header>
 
-      <section className="hero" id="inicio">
-        <div className="hero-copy">
-          <p className="eyebrow">HECHO CON SABOR, PARA TI</p>
-          <h1>Un buen día<br />empieza con un <em>buen almuerzo.</em></h1>
-          <p className="hero-text">Elige tus favoritos y nosotros nos encargamos del resto.</p>
+      <section className="chat-shell" id="inicio" aria-label="Chat para realizar un pedido">
+        <div className="chat-heading">
+          <div className="bot-avatar" aria-hidden="true">M</div>
+          <div><strong>Asistente de pedidos</strong><span>{restaurant.restaurantName} · Te ayudamos a pedir</span></div>
+          <span className="online-dot" aria-label="Disponible" />
         </div>
-        <div className="hero-illustration" aria-hidden="true">
-          <span className="sun" />
-          <span className="plate"><span className="food food-one" /><span className="food food-two" /><span className="food food-three" /></span>
-          <span className="leaf leaf-one" /><span className="leaf leaf-two" />
-        </div>
-      </section>
 
-      <div className="content-grid">
-        <section className="menu-section" aria-labelledby="menu-title">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">SELECCIÓN DEL DÍA</p>
-              <h2 id="menu-title">Nuestro menú</h2>
-            </div>
-            <span className="menu-count">{menu.length} opciones</span>
+        <div className="conversation" aria-live="polite">
+          <div className="message-row">
+            <div className="bot-avatar small" aria-hidden="true">M</div>
+            <div className="message bot-message">¡Hola! 👋 ¿Qué te gustaría pedir hoy? Revisa el menú y agrega tus favoritos.</div>
           </div>
 
-          {loading && <p className="status-card">Cargando el menú…</p>}
-          {!loading && !error && menu.length === 0 && (
-            <p className="status-card">No hay platos disponibles por el momento.</p>
-          )}
-          <div className="menu-list">
-            {menu.map((item) => (
-              <article className="menu-card" key={item.id}>
-                <div className="dish-avatar" aria-hidden="true">{item.name.slice(0, 1).toUpperCase()}</div>
-                <div className="dish-info">
-                  <span className="dish-category">{item.category || 'Plato del día'}</span>
-                  <h3>{item.name}</h3>
-                  {item.description && <p>{item.description}</p>}
-                  <strong className="dish-price">{money.format(item.price)}</strong>
-                  {cart[item.id]?.quantity > 0 && (
-                    <label className="comment-field">
-                      Nota para este plato
-                      <input
-                        maxLength="200"
-                        value={cart[item.id]?.comment || ''}
-                        onChange={(event) => setComment(item.id, event.target.value)}
-                        placeholder="Ej. sin cebolla"
-                      />
-                    </label>
-                  )}
+          {step === 'menu' && (
+            <>
+              {loading && <div className="message bot-message status-card">Cargando el menú…</div>}
+              {!loading && error && (
+                <div className="message bot-message error-message" role="alert">
+                  <strong>No pudimos cargar el menú.</strong>
+                  <span>{error}</span>
+                  <span>Revisa la conexión y la configuración de Google Sheets.</span>
+                  <button type="button" className="text-button" onClick={loadData}>Intentar de nuevo</button>
                 </div>
-                <div className="quantity-control" aria-label={`Cantidad de ${item.name}`}>
-                  <button type="button" onClick={() => setQuantity(item.id, (cart[item.id]?.quantity || 0) - 1)} aria-label={`Quitar ${item.name}`}>−</button>
-                  <span>{cart[item.id]?.quantity || 0}</span>
-                  <button type="button" onClick={() => setQuantity(item.id, (cart[item.id]?.quantity || 0) + 1)} aria-label={`Agregar ${item.name}`}>+</button>
+              )}
+              {!loading && !error && menu.length === 0 && (
+                <div className="message bot-message status-card">Todavía no hay platos disponibles. Vuelve a consultar más tarde.</div>
+              )}
+
+              {!loading && !error && menu.length > 0 && (
+                <div className="menu-list" aria-label="Menú disponible">
+                  {menu.map((item) => (
+                    <article className="menu-card" key={item.id}>
+                      <div className="dish-info">
+                        <span className="dish-category">{item.category || 'Plato del día'}</span>
+                        <h3>{item.name}</h3>
+                        {item.description && <p>{item.description}</p>}
+                        <strong className="dish-price">{money.format(item.price)}</strong>
+                        {cart[item.id]?.quantity > 0 && (
+                          <label className="comment-field">Nota para este plato
+                            <input maxLength="200" value={cart[item.id]?.comment || ''} onChange={(event) => setComment(item.id, event.target.value)} placeholder="Ej. sin cebolla" />
+                          </label>
+                        )}
+                      </div>
+                      <div className="quantity-control" aria-label={`Cantidad de ${item.name}`}>
+                        <button type="button" onClick={() => setQuantity(item.id, (cart[item.id]?.quantity || 0) - 1)} aria-label={`Quitar ${item.name}`}>−</button>
+                        <span>{cart[item.id]?.quantity || 0}</span>
+                        <button type="button" onClick={() => setQuantity(item.id, (cart[item.id]?.quantity || 0) + 1)} aria-label={`Agregar ${item.name}`}>+</button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
+              )}
 
-        <aside className="order-panel" aria-labelledby="order-title">
-          <div className="order-heading">
-            <div className="bag-icon" aria-hidden="true">⌑</div>
-            <div><p className="eyebrow">CASI LISTO</p><h2 id="order-title">Tu pedido</h2></div>
-          </div>
-
-          {selectedItems.length === 0 ? (
-            <p className="empty-cart">Tu pedido está vacío.<br />Agrega algo rico del menú.</p>
-          ) : (
-            <ul className="order-items">
-              {selectedItems.map((item) => (
-                <li key={item.id}>
-                  <span>{item.quantity} × {item.name}</span>
-                  <strong>{money.format(item.price * item.quantity)}</strong>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="total-row"><span>Total</span><strong>{money.format(total)}</strong></div>
-
-          <form className="customer-form" onSubmit={handleSubmit}>
-            <h3>¿A quién entregamos?</h3>
-            <label>Nombre completo
-              <input required minLength="2" maxLength="100" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} placeholder="Tu nombre" />
-            </label>
-            <label>Dirección de entrega
-              <input required minLength="5" maxLength="200" value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} placeholder="Calle, número y referencia" />
-            </label>
-            <label>Teléfono o WhatsApp
-              <input required inputMode="tel" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} placeholder="09XXXXXXXX" />
-              <small>Formato: 09XXXXXXXX o +5939XXXXXXXX</small>
-            </label>
-            {error && <p className="alert" role="alert">{error}</p>}
-            {notice && (
-              <div className="success-card" role="status">
-                <strong>¡Pedido recibido!</strong>
-                <span>Comanda {notice.id.slice(0, 8)} · {money.format(notice.total)}</span>
-                <span>{notice.notification.sent ? 'Enviamos la comanda al restaurante.' : 'Pedido guardado; correo pendiente de configuración.'}</span>
-                {whatsappUrl && <a href={whatsappUrl} target="_blank" rel="noreferrer">Continuar por WhatsApp ↗</a>}
+              <div className="message-row user-row">
+                <div className="message user-message">
+                  {selectedItems.length === 0 ? 'Estoy revisando el menú.' : `Quiero ${selectedItems.map((item) => `${item.quantity} ${item.name}`).join(', ')}.`}
+                </div>
               </div>
-            )}
-            <button className="submit-button" type="submit" disabled={submitting || selectedItems.length === 0 || loading}>
-              {submitting ? 'Enviando pedido…' : 'Confirmar pedido'} <span aria-hidden="true">→</span>
-            </button>
-            <p className="secure-note">Al confirmar, tus datos se usarán para gestionar esta entrega.</p>
-          </form>
-        </aside>
-      </div>
-      <footer className="footer">Preparado con cariño · {restaurant.restaurantName}</footer>
+              {selectedItems.length > 0 && (
+                <div className="chat-summary">
+                  <div className="summary-title"><strong>Tu pedido</strong><strong>{money.format(total)}</strong></div>
+                  {selectedItems.map((item) => <div className="summary-line" key={item.id}>{item.quantity} × {item.name}</div>)}
+                  <button className="submit-button" type="button" onClick={() => { setError(''); setStep('details'); }}>
+                    Continuar con la entrega <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {step === 'details' && (
+            <>
+              <div className="message-row"><div className="bot-avatar small" aria-hidden="true">M</div><div className="message bot-message">¡Perfecto! Tu pedido suma <strong>{money.format(total)}</strong>. ¿A quién y dónde lo entregamos?</div></div>
+              <div className="message-row user-row"><div className="message user-message">Quiero recibirlo en mi dirección.</div></div>
+              <form className="chat-form" onSubmit={handleSubmit}>
+                <label>Nombre completo
+                  <input required minLength="2" maxLength="100" autoComplete="name" value={customer.name} onChange={(event) => setCustomer({ ...customer, name: event.target.value })} placeholder="Tu nombre" />
+                </label>
+                <label>Dirección de entrega
+                  <input required minLength="5" maxLength="200" autoComplete="street-address" value={customer.address} onChange={(event) => setCustomer({ ...customer, address: event.target.value })} placeholder="Calle, número y referencia" />
+                </label>
+                <label>Teléfono o WhatsApp
+                  <input required inputMode="tel" autoComplete="tel" value={customer.phone} onChange={(event) => setCustomer({ ...customer, phone: event.target.value })} placeholder="09XXXXXXXX" />
+                  <small>Formato: 09XXXXXXXX o +5939XXXXXXXX</small>
+                </label>
+                {error && <p className="alert" role="alert">{error}</p>}
+                <div className="form-actions">
+                  <button className="back-button" type="button" onClick={() => { setError(''); setStep('menu'); }}>Volver al menú</button>
+                  <button className="submit-button" type="submit" disabled={submitting || selectedItems.length === 0}>
+                    {submitting ? 'Enviando…' : `Confirmar · ${money.format(total)}`} <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+                <p className="secure-note">Tus datos se usarán para gestionar esta entrega.</p>
+              </form>
+            </>
+          )}
+
+          {step === 'done' && notice && (
+            <div className="success-card" role="status">
+              <strong>¡Pedido recibido!</strong>
+              <span>Comanda {notice.id.slice(0, 8)} · {money.format(notice.total)}</span>
+              <span>{notice.notification.sent ? 'Enviamos la comanda al restaurante.' : 'Pedido guardado; correo pendiente de configuración.'}</span>
+              {whatsappUrl && <a href={whatsappUrl} target="_blank" rel="noreferrer">Continuar por WhatsApp ↗</a>}
+              <button type="button" className="text-button" onClick={() => { setCustomer({ name: '', address: '', phone: '' }); setNotice(null); setStep('menu'); }}>Hacer otro pedido</button>
+            </div>
+          )}
+        </div>
+
+        <footer className="chat-footer">Preparado con cariño · {restaurant.restaurantName}</footer>
+      </section>
     </main>
   );
 }
